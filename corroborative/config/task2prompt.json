@@ -1,0 +1,4 @@
+{
+    "shortdep_qa": "Please answer the question based on the long texts below.\n{input}\nQuestion: {Q}\nDo not explain yourself after the answer.",
+    "longdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nDo not explain yourself after the answer."
+}
