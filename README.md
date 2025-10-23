@@ -1,6 +1,6 @@
 # Context Deletion Analysis Framework
 
-This repository implements a comprehensive framework for analyzing contributive attribution in question answering systems. It compares two main approaches: **TreeFinder** (a hierarchical tree-based method) and **ContextCite** (an ablation-based attribution method) across multiple benchmark datasets.
+This repository implements a comprehensive framework for analyzing contributive attribution in question answering systems. It compares three main approaches: **TreeFinder**, **TracLLM** and **ContextCite** across multiple benchmark datasets.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The framework evaluates how different contributive attribution methods perform o
 
 1. **TreeFinder**: A hierarchical approach that uses a tree-based structure to remove parts of the context in chunks and measures, with necessity and sufficiency scores, the answer score drop.
 2. **ContextCite**: An ablation-based method that measures context importance through the measure of the answer probability under a multitude of random removals in the context.
-3. *TracLLM**: A hierarchical approach that uses a tree-based structure to remove parts of the context in chunks and measures the answer probability drops for some perturbations, then use a model to predict the scores of all sentences at certain level in the tree.
+3. **TracLLM**: A hierarchical approach that uses a tree-based structure to remove parts of the context in chunks and measures the answer probability drops for some perturbations, then use a model to predict the scores of all sentences at certain level in the tree.
 
 TreeFinder works for sure using the Transformers variant. The others are provided as examples and might not lead to the same results or might be bugged.
 
