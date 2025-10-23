@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive comparison script for TreeFinder vs ContextCite methods.
-Processes the first 100 samples from a dataset and generates comparison metrics.
+Comprehensive comparison script for TreeFinder vs ContextCite vs TracLLM methods.
 """
 
 import argparse
