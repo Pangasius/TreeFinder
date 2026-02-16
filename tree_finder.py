@@ -10,7 +10,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 import torch
 from transformers import AutoTokenizer
-from tree_utils import (
+from .tree_utils import (
     AbstractFinder,
     AbstractFinderAPI,
     AbstractFinderTransformer,
@@ -34,7 +34,7 @@ class TreeFinder(AbstractFinder):
         cum_prob: float,
         topk: int,
         batch_size: int,
-        logger: logging.Logger,
+        logger: Optional[logging.Logger] = None,
         alpha: float = 0.25,
     ):
         """
@@ -72,6 +72,10 @@ class TreeFinder(AbstractFinder):
         self.alpha = alpha
         self.logger = logger
         self.version = "v2"
+
+        if self.logger is None:
+            self.logger = logging.getLogger(__name__)
+            self.logger.setLevel(logging.DEBUG)
 
         self.logger.info(
             f"Initialized TreeFinder with factor={factor}, "
@@ -275,7 +279,7 @@ class TreeFinder(AbstractFinder):
 
         # Apply top-k filtering
         if len(sorted_indices) > self.topk + (len(mask) - mask.sum()):
-            mask[sorted_indices[self.topk + (len(mask) - mask.sum()) :]] = 0
+            mask[sorted_indices[self.topk + (len(mask) - mask.sum()):]] = 0
 
         cumulative_sum = torch.cumsum(softmax_scores[sorted_indices], dim=0)
         cutoff_indices = torch.where(cumulative_sum > self.cum_prob)[0]
@@ -389,7 +393,7 @@ class TreeFinder(AbstractFinder):
             else:
                 original_scores[idx] = significance_scores[idx].item()
 
-    def get_scores(self, question: str, context: List[str]) -> torch.Tensor:
+    def get_scores(self, question: str, context: List[str], precomputed_answer: Optional[Tuple[torch.Tensor, str, float]] = None) -> torch.Tensor:
         """
         Process single data instance end-to-end.
 
@@ -400,10 +404,17 @@ class TreeFinder(AbstractFinder):
         Returns:
             Tensor of significance scores for each sentence in context
         """
-        tokens, answer, initial_total_log_prob = self.generate_answer(
-            context_sentences=context,
-            question=question,
-        )
+
+        if precomputed_answer is None:
+            tokens, answer, initial_total_log_prob = self.generate_answer(
+                context_sentences=context,
+                question=question,
+            )
+        else:
+            tokens, answer, initial_total_log_prob = precomputed_answer
+
+        # fix for missing EOS
+        tokens = torch.cat([tokens, torch.tensor([self.tokenizer.pad_token_id]).to(tokens.device)], dim=0)
 
         empty_prompt = [
             [

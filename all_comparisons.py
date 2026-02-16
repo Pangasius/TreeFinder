@@ -28,8 +28,8 @@ from context_cite import ContextCiter
 
 from tracllmkit import PerturbationBasedAttribution
 
-from tree_finder import TreeFinderTransformer
-from tree_utils import DEFAULT_PROMPT_TEMPLATE, DEFAULT_GENERATE_KWARGS
+from .tree_finder import TreeFinderTransformer
+from .tree_utils import DEFAULT_PROMPT_TEMPLATE, DEFAULT_GENERATE_KWARGS
 
 import torch._dynamo
 
