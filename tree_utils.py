@@ -146,7 +146,7 @@ class AbstractFinder(ABC):
     @abstractmethod
     def get_scores(
         self, question: str, context: List[str], precomputed_answer: Optional[Tuple]
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, str]:
         """Process a single data instance end-to-end."""
         pass
 

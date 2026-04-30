@@ -252,7 +252,7 @@ class TreeFinder(AbstractFinder):
 
         return full_score + 0.5 * (removed_scores - solo_scores)
 
-    def get_scores(self, question: str, context: List[str], precomputed_answer: Optional[Tuple[torch.Tensor, str, float]] = None) -> torch.Tensor:
+    def get_scores(self, question: str, context: List[str], precomputed_answer: Optional[Tuple[torch.Tensor, str, float]] = None) -> tuple[torch.Tensor, str]:
         """
         Process single data instance end-to-end using A*-like best-first search.
 
@@ -277,7 +277,7 @@ class TreeFinder(AbstractFinder):
 
         num_sentences = len(context)
         if num_sentences == 0:
-            return torch.tensor([], dtype=torch.float32)
+            return torch.tensor([], dtype=torch.float32), answer
 
         precomputed_full_answer = (tokens, answer, initial_total_log_prob)
 
