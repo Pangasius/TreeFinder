@@ -1,28 +1,43 @@
 #!/bin/bash
 
-# Usage: ./slurm.sbatch <dataset>
-# Where dataset is one of: hotpot_qa, loogle_short, loogle_long, longbench
+# Usage: ./slurm.sbatch [dataset]
+# If no dataset is given, submits jobs for ALL datasets.
+# Valid datasets: hotpot_qa, loogle_short, loogle_long, longbench
 
-# Get dataset from command line argument
-DATASET=${1:-hotpot_qa}
+ALL_DATASETS=("hotpot_qa" "loogle_short" "loogle_long" "longbench")
+
+# If no argument, submit one job per dataset
+if [ -z "$1" ]; then
+    echo "No dataset specified — submitting jobs for all datasets."
+    for DS in "${ALL_DATASETS[@]}"; do
+        bash "$0" "$DS"
+    done
+    exit 0
+fi
+
+DATASET=$1
 
 # Set resources based on dataset
 case $DATASET in
     "hotpot_qa")
         GPUS=1
         TIME="1-00:00:00"
+        ABLATIONS=50
         ;;
     "loogle_short")
         GPUS=2
         TIME="2-00:00:00"
+        ABLATIONS=100
         ;;
     "loogle_long")
         GPUS=2
         TIME="2-00:00:00"
+        ABLATIONS=100
         ;;
     "longbench")
         GPUS=2
-        TIME="2-00:00:00"
+        TIME="1-00:00:00"
+        ABLATIONS=100
         ;;
     *)
         echo "Unknown dataset: $DATASET"
@@ -35,20 +50,20 @@ echo "Submitting job for dataset: $DATASET"
 echo "Configuration: $GPUS GPUs, $TIME time limit"
 
 # Calculate resources based on GPU count
-CPUS=$((8 * GPUS))
-MEM=$((60 * GPUS))
+CPUS=$((7 * GPUS))
+MEM=$((50 * GPUS))
 
 # Submit the job with the appropriate parameters
 sbatch <<EOF
 #!/bin/bash
-#SBATCH --job-name=TreeFinder_${DATASET}
+#SBATCH --job-name=TreeFinder_${DATASET}_%j
 #SBATCH --gpus=${GPUS}
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=${CPUS}
 #SBATCH --time=${TIME}
 #SBATCH --mem=${MEM}GB
-#SBATCH -o log_${DATASET}.out
-#SBATCH -e log_${DATASET}.err
+#SBATCH -o log_${DATASET}_%j.out
+#SBATCH -e log_${DATASET}_%j.err
 #SBATCH --account=ACCOUNT_NAME
 #SBATCH --partition=gpu
 #SBATCH --export=ALL
@@ -63,9 +78,9 @@ source ~/.bashrc
 conda activate CONDA_ENV_NAME
 
 # Navigate to project directory
-cd /path/to/your/project
+cd /gpfs/home/acad/ulg-sysmod/lpirenne/delete_context
 
 # Run the comparison script with the specified dataset
-python all_comparisons.py --dataset $DATASET --num_samples 1000 --mode all --version v2 --output_dir ./results --alpha 0.25 --num_ablations 100
+python -m context_deletion.all_comparisons --dataset $DATASET --num_samples 1000 --mode all --version v9 --output_dir ./context_deletion/results_v9_2 --alpha 0.5 --num_ablations $ABLATIONS --model_name Qwen/Qwen2.5-7B-Instruct-1M
 EOF
 

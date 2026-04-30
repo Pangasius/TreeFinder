@@ -3,9 +3,11 @@ import torch
 
 from abc import ABC, abstractmethod
 
-
-from vllm import LLM, SamplingParams
-from vllm.sampling_params import GuidedDecodingParams
+try:
+    from vllm import LLM, SamplingParams
+    from vllm.sampling_params import GuidedDecodingParams
+except ImportError:
+    print("vLLM library not found. Please install vLLM to use AbstractFinderVLLM.")
 
 
 from openai import OpenAI
@@ -13,7 +15,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 
 DEFAULT_GENERATE_KWARGS_VLLM = {
-    "max_new_tokens": 64,
+    "max_new_tokens": 128,
     "do_sample": False,
     "temperature": 0.0,
     "top_p": 1.0,
@@ -21,14 +23,14 @@ DEFAULT_GENERATE_KWARGS_VLLM = {
     "repetition_penalty": 1.0,
 }
 DEFAULT_GENERATE_KWARGS = {
-    "max_new_tokens": 64,
+    "max_new_tokens": 128,
     "do_sample": False,
     "repetition_penalty": 1.0,
     "temperature": None,
     "top_p": None,
     "top_k": None,
 }
-DEFAULT_PROMPT_TEMPLATE = "###Context:\n{context}\n###Question:\n{query}"
+DEFAULT_PROMPT_TEMPLATE = "###Instruction:\n Respond to the question based on the context provided. The answer must be concise and accurate.\n###Context:\n{context}\n###Question:\n{query}"
 
 
 class AbstractFinder(ABC):
@@ -36,7 +38,6 @@ class AbstractFinder(ABC):
         self.model_name = model_name
         self.model_path = model_path
         self.prompt_format = DEFAULT_PROMPT_TEMPLATE
-        self.probability_mode = "log_prob"
 
         # Will be set by child classes
         self.tokenizer = None
@@ -121,43 +122,31 @@ class AbstractFinder(ABC):
                 batch_prompts, answer, tokens, actual_batch_size
             )
 
-            logit_probs[i: i + actual_batch_size] = logits.cpu()
+            logit_probs[i : i + actual_batch_size] = logits.cpu()
 
         return logit_probs, answer, len(tokens), initial_total_log_prob
 
     @staticmethod
-    def compute_logit_probs(logits, labels):
-        """This is the function from ContextCite's repo. To have the positive logits and not uncertainty, we have commented out the other_logits part."""
-        batch_size, seq_length = labels.shape
-        # [num_tokens x vocab_size]
-        reshaped_logits = logits.reshape(batch_size * seq_length, -1)
-        reshaped_labels = labels.reshape(batch_size * seq_length)
-        correct_logits = reshaped_logits.gather(-1, reshaped_labels[:, None])[:, 0]
-        # cloned_logits = reshaped_logits.clone()
-        # cloned_logits.scatter_(-1, reshaped_labels[:, None], -torch.inf)
-        # other_logits = cloned_logits.logsumexp(dim=-1)
-        # reshaped_outputs = correct_logits - other_logits
-        # return reshaped_outputs.reshape(batch_size, seq_length)
-        return correct_logits.reshape(batch_size, seq_length)
+    def compute_log_probs(logits, labels):
+        """Compute log-probabilities of the target tokens."""
+        batch_size, seq_length, vocab_size = logits.shape
+        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        # Gather the log-prob of the correct tokens
+        target_log_probs = log_probs.gather(-1, labels.unsqueeze(-1)).squeeze(-1)
+        return target_log_probs
 
     @staticmethod
-    def aggregate_logit_probs(logit_probs, output_type="logit_prob"):
-        """This is the function from ContextCite's repo. Compute sequence-level outputs from token-level logit-probabilities."""
-        log_probs = torch.nn.functional.logsigmoid(logit_probs).sum(dim=1)
-        if output_type == "log_prob":
-            return log_probs
-        elif output_type == "logit_prob":
-            log_1mprobs = torch.log1p(-torch.exp(log_probs))
-            return log_probs - log_1mprobs
-        elif output_type == "total_token_logit_prob":
-            return logit_probs.mean(dim=1)
-        else:
-            raise ValueError(
-                f"Cannot aggregate log probs for output type '{output_type}'"
-            )
+    def compute_logit_probs(logits, labels):
+        """Compute logit - logsumexp(all logits) for target tokens."""
+        batch_size, seq_length, vocab_size = logits.shape
+        log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        target_log_probs = log_probs.gather(-1, labels.unsqueeze(-1)).squeeze(-1)
+        return target_log_probs  # These are actually log-probs, not "logit probs"
 
     @abstractmethod
-    def get_scores(self, question: str, context: List[str], precomputed_answer: Optional[Tuple]) -> torch.Tensor:
+    def get_scores(
+        self, question: str, context: List[str], precomputed_answer: Optional[Tuple]
+    ) -> torch.Tensor:
         """Process a single data instance end-to-end."""
         pass
 
@@ -180,6 +169,10 @@ class AbstractFinderTransformer(AbstractFinder):
             self.tokenizer = tokenizer
             self.device = model.device
             self.gen_kwargs = DEFAULT_GENERATE_KWARGS.copy()
+
+            if self.tokenizer.pad_token_id is None:
+                self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+
             self.gen_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
             self.gen_kwargs["eos_token_id"] = self.tokenizer.eos_token_id
             return
@@ -190,6 +183,9 @@ class AbstractFinderTransformer(AbstractFinder):
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path + model_name)
         self.tokenizer.padding_side = "left"
+
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path + model_name,
@@ -217,36 +213,34 @@ class AbstractFinderTransformer(AbstractFinder):
             message,
             tokenize=True,
             add_generation_prompt=True,
-            return_tensors="pt",
+            return_dict=True,
             enable_thinking=False,
+            return_tensors="pt",
         )
 
         with torch.no_grad():
             outputs = self.model.generate(
-                tokenized_chat.to(self.device),
+                inputs=tokenized_chat.input_ids.to(self.device),
                 return_dict_in_generate=True,
                 output_scores=True,
+                attention_mask=tokenized_chat.attention_mask.to(self.device),
                 **self.gen_kwargs,
             )
 
         self.num_calls += 1
 
         # Get only the generated tokens (after the prompt)
-        generated_token_ids = outputs.sequences[0, tokenized_chat.shape[1]:]
+        generated_token_ids = outputs.sequences[0, tokenized_chat.input_ids.shape[1]:]
         generated_text = self.tokenizer.decode(
             generated_token_ids, skip_special_tokens=True
         )
 
         # Calculate log probabilities using the defined function compute_logit_probs
-        prob = self.compute_logit_probs(
+        log_probs = self.compute_log_probs(
             torch.stack(outputs.scores, dim=1), generated_token_ids.unsqueeze(0)
         )
 
-        aggregated_log_probs = self.aggregate_logit_probs(
-            prob, output_type=self.probability_mode
-        )
-
-        return generated_token_ids, generated_text, aggregated_log_probs.item()
+        return generated_token_ids, generated_text, log_probs.sum().item()
 
     def compute_answer_probability(
         self,
@@ -261,32 +255,37 @@ class AbstractFinderTransformer(AbstractFinder):
             tokenize=True,
             add_generation_prompt=True,
             return_tensors="pt",
+            return_dict=True,
             padding=True,
             truncation=False,
             enable_thinking=False,
-        ).to(self.device)
+        )
 
         expanded_answer = tokens.expand(batch_size, -1)
         input_ids_batch = torch.cat(
-            [batch_prompt_inputs.to(self.device), expanded_answer], dim=1
+            [batch_prompt_inputs.input_ids.to(self.device), expanded_answer], dim=1
+        )
+        attention_mask_batch = torch.cat(
+            [batch_prompt_inputs.attention_mask.to(self.device), torch.ones_like(expanded_answer, dtype=torch.long)], dim=1
         )
 
         with torch.no_grad():
             batch_outputs = self.model(
                 input_ids=input_ids_batch,
+                attention_mask=attention_mask_batch,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
 
         self.num_calls += batch_size
 
-        answer_logits = batch_outputs.logits[:, batch_prompt_inputs.size(1) - 1: -1, :]
+        answer_logits = batch_outputs.logits[:, batch_prompt_inputs.input_ids.size(1) - 1: -1, :]
 
-        reshaped_logits = self.compute_logit_probs(
-            answer_logits, input_ids_batch[:, batch_prompt_inputs.size(1):]
+        log_probs = self.compute_log_probs(
+            answer_logits, input_ids_batch[:, batch_prompt_inputs.input_ids.size(1):]
         )
 
-        return self.aggregate_logit_probs(reshaped_logits, output_type=self.probability_mode)
+        return log_probs.sum(dim=1)
 
 
 class AbstractFinderAPI(AbstractFinder):
@@ -518,7 +517,7 @@ class AbstractFinderVLLM(AbstractFinder):
         all_log_probs = []
         for i in range(0, len(batch_prompt_strings), batch_size):
             # Get batch slice
-            batch_slice = batch_prompt_strings[i: i + batch_size]
+            batch_slice = batch_prompt_strings[i : i + batch_size]
 
             # Generate with the specific answer as constraint
             outputs = self.llm.generate(batch_slice, guided_sampling_params)

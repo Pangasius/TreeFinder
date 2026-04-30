@@ -79,7 +79,7 @@ python all_comparisons.py \
     - Step: `necessity_sufficiency`, `topw_group_scores`
 - `--output_dir`: Directory for output files (default: `./results`)
 - `--alpha`: Weighting parameter for necessity vs sufficiency (0.0-1.0)
-- `--version`: The version name for differentiating results (`v2` for alpha=0.25 in the paper, `a0` for alpha=0.0 in the paper, `a1` for alpha=1.0 in the paper)
+- `--version`: The version name for differentiating results (`v2` for alpha=0.5 in the paper, `a0` for alpha=0.0 in the paper, `a1` for alpha=1.0 in the paper)
 - `--num_ablations`: Number of ablation for ContextCite (32, 50, 100)
 - `--model_name`: Model to use (default: `Qwen/Qwen2.5-7B-Instruct-1M`)
 
@@ -118,27 +118,21 @@ The script automatically configures resources based on dataset requirements:
 
 ```bash
 # Run full analysis on HotpotQA
-python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode all --version v2 --output_dir ./results --alpha 0.25 --num_ablations 32
+python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode all --version v2 --output_dir ./results --alpha 0.5 --num_ablations 32
 ```
 
 ### Batch Processing Commands
 
 ```bash
 # Process all datasets with different configurations
-python all_comparisons.py --dataset loogle_short --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 32
-python all_comparisons.py --dataset loogle_short --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 100
-python all_comparisons.py --dataset loogle_long --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 100
-python all_comparisons.py --dataset loogle_long --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 32
-python all_comparisons.py --dataset loogle_long --num_samples 1000 --mode metrics --version a0 --output_dir ./results --alpha 0.0 --num_ablations 32
-python all_comparisons.py --dataset loogle_long --num_samples 1000 --mode metrics --version a1 --output_dir ./results --alpha 1.0 --num_ablations 32
-python all_comparisons.py --dataset longbench --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 100
-python all_comparisons.py --dataset longbench --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 32
-python all_comparisons.py --dataset longbench --num_samples 1000 --mode metrics --version a0 --output_dir ./results --alpha 0.0 --num_ablations 32
-python all_comparisons.py --dataset longbench --num_samples 1000 --mode metrics --version a1 --output_dir ./results --alpha 1.0 --num_ablations 32
-python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 50
-python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.25 --num_ablations 32
-python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode metrics --version a0 --output_dir ./results --alpha 0.0 --num_ablations 32
-python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode metrics --version a1 --output_dir ./results --alpha 1.0 --num_ablations 32
+python all_comparisons.py --dataset loogle_short --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 32
+python all_comparisons.py --dataset loogle_short --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 100
+python all_comparisons.py --dataset loogle_long --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 100
+python all_comparisons.py --dataset loogle_long --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 32
+python all_comparisons.py --dataset longbench --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 100
+python all_comparisons.py --dataset longbench --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 32
+python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 50
+python all_comparisons.py --dataset hotpot_qa --num_samples 1000 --mode metrics --version v2 --output_dir ./results --alpha 0.5 --num_ablations 32
 ```
 
 ## Output Files
@@ -165,9 +159,7 @@ This is not compatible with a change of filtering since the ids are not tracked.
 
 These are the conventions that have been used for the results the paper, they have no effect other than changing the save files' names.
 
-- **v2**: Standard version with alpha=0.25 (balanced necessity/sufficiency)
-- **a0**: Sufficiency-only version with alpha=0.0  
-- **a1**: Necessity-only version with alpha=1.0
+- **v9**: Standard version with alpha=0.5 (balanced necessity/sufficiency)
 
 ## Paper
 
