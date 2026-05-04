@@ -1053,20 +1053,21 @@ def plot_llm_judge_results(args, log, datasets=None):
         for m in methods:
             for c in crit_keys:
                 if sc[m][c]:
-                    agg[m][c].append(np.mean(sc[m][c]))
-
-    if any(agg[m][c] for m in methods for c in crit_keys):
-        _plot_judge_chart(
-            agg,
-            methods,
-            crit_keys,
-            crit_labels,
-            METHOD_COLORS,
-            scale,
-            "LLM-as-a-Judge — Aggregate",
-            output_dir
-            / f"aggregate_llm_judge_{args['version']}_{args['num_ablations']}.pdf",
-        )
+                    agg[m][c].extend(sc[m][c])
+                    
+    if len(datasets) > 1:
+        if any(agg[m][c] for m in methods for c in crit_keys):
+            _plot_judge_chart(
+                agg,
+                methods,
+                crit_keys,
+                crit_labels,
+                METHOD_COLORS,
+                scale,
+                "LLM-as-a-Judge — Aggregate",
+                output_dir
+                / f"aggregate_llm_judge_{args['version']}_{args['num_ablations']}.pdf",
+            )
 
 
 def _plot_judge_chart(
@@ -1079,8 +1080,8 @@ def _plot_judge_chart(
         means = [np.mean(scores[m][c]) if scores[m][c] else 0 for c in crit_keys]
         sems = [
             np.std(scores[m][c]) / np.sqrt(len(scores[m][c]))
-            if len(scores[m].get(c, [])) > 1
-            else 0
+            if len(scores[m][c]) > 1  # Only compute SEM with 2+ samples
+            else np.nan  # or 0, depending on desired behavior
             for c in crit_keys
         ]
         ax.bar(
